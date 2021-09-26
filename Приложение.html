@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ru">
+	<head>
+		<title>Поздравлялка</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<script src="https://vk.com/js/api/xd_connection.js?2"  type="text/javascript"></script>
+		<style>
+			* {
+				box-sizing: border-box;
+			}
+			
+			html, body {
+				height: 100%;
+				width: 100%;
+			}
+			
+			body {
+				margin: 0;
+				padding: 8px;
+			}
+			
+			.container {
+				height: 90%;
+				overflow: auto;
+			}
+			
+			.btn-container {
+				height: 10%;
+				background-color: lightblue;
+				display: flex;
+				justify-content: center;
+				align-items: center;
+			}
+			
+			label {
+				display: inline-block;
+				height: 100px;
+				width: 100px;
+				position: relative;
+			}
+			
+			input[data-photo-id] {
+				position: absolute;
+				top: 5px;
+				right: 5px;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			<p>Выберите группу, в которой будет размещено поздравление.</p>
+			<select id="groups">
+			</select>
+			<p>Выберите дату и время размещения поста.</p>
+			<input id="post-date" type="datetime-local" onchange="changePostDateTime()">
+			<p>Текст поздравления.</p>
+			<textarea id="text" cols="60" rows="15"></textarea><br><br>
+			<button onclick="showUsers(groups.value, postMonth, postDate)">Показать именинников</button><br><br>
+			<div id="users-photos"></div><br><br>
+		</div>
+		<div class="btn-container">
+			<button id="make-post-btn" onclick="makePost()" disabled>Разместить пост</button>
+		</div>
+	</body>
+	<script>
+		'use strict';
+		
+		const groups = document.getElementById('groups');
+		const text = document.getElementById('text');
+		const usersPhotos = document.getElementById('users-photos');
+		const makePostBtn = document.getElementById('make-post-btn');
+		const defaultPostDateTime = new Date();
+		defaultPostDateTime.setDate(defaultPostDateTime.getDate() + 1);
+		const defaultPostYear = defaultPostDateTime.getFullYear();
+		const defaultPostMonth = defaultPostDateTime.getMonth() + 1;
+		const defaultPostDate = defaultPostDateTime.getDate();
+		let postYear = defaultPostYear;
+		let postMonth = defaultPostMonth;
+		let postDate = defaultPostDate;
+		let attachments = [];
+
+		const staticText = 'Сегодня мы спешим поздравить наших сообщников с ДНЕМ РОЖДЕНИЯ!!!\n\n';
+		text.innerHTML = staticText;
+
+		VK.init(function() {
+			VK.api("groups.get", {"extended": "1", 'count':300, 'filter': 'admin'}, function (data) {
+				data.response.items.forEach( (item) => {
+					let elem = document.createElement('option');
+					elem.innerHTML = item.name;
+					elem.setAttribute('value', item.id);
+					groups.appendChild(elem);
+				});	
+			});
+		}, function() {
+			document.write('Ошибка инициализации приложения!! Обратитесь к разработчику приложения или обновите страницу.');
+		}, '5.131');
+
+		document.getElementById('post-date').value = defaultPostYear + '-' + defaultPostMonth.toString().padStart(2,0) + 
+			'-' + defaultPostDate.toString().padStart(2,0) + 'T09:00';
+
+		function changePostDateTime() {
+			let dateTime = document.getElementById('post-date').value;
+			postYear = +dateTime.slice(0, 4);
+			postMonth = +dateTime.slice(5, 7);
+			postDate = +dateTime.slice(8, 10);
+		}
+
+		function showUsers(groupId, month, date) {
+			VK.init(function() {
+				VK.api("users.search", {group_id: groupId, birth_day: date, birth_month: month, count:1000, fields: 'photo_id,photo_100'}, function (data) {
+					let usersList = [];
+					let usersPhotosList = [];
+					
+					data.response.items.forEach(function (user) {
+						let userInfo = '@id' + user.id + ' (' + user.first_name + ' ' + user.last_name + ') ';
+						usersList.push(userInfo);
+						let userPhoto = '<label><img src="' + user.photo_100 + '"><input type="checkbox" data-photo-id="photo' + 
+							user.photo_id + '" checked></label>';
+						usersPhotosList.push(userPhoto);
+						let attachment = 'photo' + user.photo_id;
+						attachments.push(attachment);
+					});
+
+					text.innerHTML = staticText + usersList.join(' ');
+					usersPhotos.innerHTML = usersPhotosList.join('');
+
+					if (data.response.items.length > 0)
+						makePostBtn.disabled = false;
+					else {
+						makePostBtn.disabled = true;
+					}
+
+				});
+			}, function() {
+				document.write('Ошибка инициализации приложения!! Обратитесь к разработчику приложения или обновите страницу.');
+			}, '5.131');
+		}
+
+		function makePost() {
+			let publish_date = Date.parse( document.getElementById('post-date').value ) / 1000;
+			attachments = [];
+
+			document.querySelectorAll('input[data-photo-id]').forEach((elem) => {
+				if (elem.checked == true) {
+					attachments.push(elem.getAttribute('data-photo-id'));
+				}
+			});
+
+			VK.init(function() {
+				VK.api("wall.post", {owner_id: '-' + groups.value, from_group: 1, publish_date: publish_date,
+					message: text.value, attachments: attachments.join(',')});
+			}, function() {
+				document.write('Ошибка инициализации приложения!! Обратитесь к разработчику приложения или обновите страницу.');
+			}, '5.131');
+		}
+
+	</script>
+</html>
